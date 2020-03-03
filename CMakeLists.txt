@@ -10,7 +10,8 @@ set(HEADERS
   antlr4-runtime/MxBaseVisitor.h
   antlr4-runtime/antlr4-runtime.h
   ast/ast_builder.h
-  ast/ast_node.h)
+  ast/node.h
+  ast/visitor.h)
 
 set(SOURCES
   main.cpp
