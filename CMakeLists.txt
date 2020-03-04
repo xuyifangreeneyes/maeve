@@ -9,9 +9,11 @@ set(HEADERS
   antlr4-runtime/MxVisitor.h
   antlr4-runtime/MxBaseVisitor.h
   antlr4-runtime/antlr4-runtime.h
-  ast/ast_builder.h
+  ast/fwd.h
+  ast/builder.h
   ast/node.h
   ast/visitor.h
+  ast/printer.h
   utils/error.h)
 
 set(SOURCES
@@ -20,7 +22,8 @@ set(SOURCES
   antlr4-runtime/MxParser.cpp
   antlr4-runtime/MxVisitor.cpp
   antlr4-runtime/MxBaseVisitor.cpp
-  ast/ast_builder.cpp)
+  ast/builder.cpp
+  ast/printer.cpp)
 
 add_executable(menhir ${HEADERS} ${SOURCES})
 target_include_directories(menhir PRIVATE /usr/local/include/antlr4-runtime)

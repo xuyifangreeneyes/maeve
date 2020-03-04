@@ -1,6 +1,7 @@
 #ifndef MENHIR_AST_NODE_H
 #define MENHIR_AST_NODE_H
 
+#include "fwd.h"
 #include "visitor.h"
 #include <memory>
 #include <string>
@@ -24,12 +25,12 @@ struct Type : AstNode {
   MENHIR_AST_PURE_ACCEPT
 };
 
-struct BaseType : AstNode {
+struct BaseType : Type {
   MENHIR_AST_PURE_ACCEPT
 };
 
 struct BuiltinType : BaseType {
-  enum Kind {Int, Bool, String, Null};
+  enum Kind { Int, Bool, String };
 
   explicit BuiltinType(Kind kind) : kind(kind) {}
 
@@ -37,8 +38,6 @@ struct BuiltinType : BaseType {
 
   Kind kind;
 };
-
-struct ClassDecl;
 
 struct ClassType : BaseType {
   explicit ClassType(std::string name) : name(std::move(name)) {}
@@ -67,8 +66,25 @@ struct Expr : AstNode {
 
 struct BinaryExpr : Expr {
   enum Op {
-      Mul, Div, Mod, Add,    Sub,   Lsft,   Rsft, Lt, Gt,     Le,
-      Ge,  Eq,  Neq, BitAnd, BitOr, BitXor, And,  Or, Assign,
+    Mul,
+    Div,
+    Mod,
+    Add,
+    Sub,
+    Lsft,
+    Rsft,
+    Lt,
+    Gt,
+    Le,
+    Ge,
+    Eq,
+    Neq,
+    BitAnd,
+    BitOr,
+    BitXor,
+    And,
+    Or,
+    Assign,
   };
 
   BinaryExpr(Op op, std::shared_ptr<Expr> lhs, std::shared_ptr<Expr> rhs)
@@ -81,10 +97,7 @@ struct BinaryExpr : Expr {
 };
 
 struct UnaryExpr : Expr {
-  enum Op {
-    PreInc, PreDec, PostInc, PostDec,
-    Pos, Neg, Not, BitNot
-  };
+  enum Op { PreInc, PreDec, PostInc, PostDec, Pos, Neg, Not, BitNot };
 
   UnaryExpr(Op op, std::shared_ptr<Expr> operand)
       : op(op), operand(std::move(operand)) {}
@@ -137,8 +150,6 @@ struct NewExpr : Expr {
   std::vector<std::shared_ptr<Expr>> shape;
 };
 
-struct VarDecl;
-
 struct VarExpr : Expr {
   explicit VarExpr(std::string name) : name(std::move(name)) {}
 
@@ -153,7 +164,7 @@ struct LiteralExpr : Expr {
 };
 
 struct LiteralInt : LiteralExpr {
-  explicit LiteralExpr(int value) : value(value) {}
+  explicit LiteralInt(int value) : value(value) {}
 
   MENHIR_AST_ACCEPT
 
@@ -271,13 +282,13 @@ struct Decl : AstNode {
 
 struct VarDecl : Decl {
   VarDecl(std::string name, std::shared_ptr<Type> type,
-          std::shared_ptr<Expr> init = nullptr)
+          std::shared_ptr<Expr> initExpr = nullptr)
       : name(std::move(name)), type(std::move(type)),
         initExpr(std::move(initExpr)) {}
 
   MENHIR_AST_ACCEPT
 
-  std::name name;
+  std::string name;
   std::shared_ptr<Type> type;
   std::shared_ptr<Expr> initExpr;
 };
@@ -304,11 +315,11 @@ struct ClassDecl : Decl {
   MENHIR_AST_ACCEPT
 
   std::string name;
-  std::vector<std::shared_ptr<Decl>> decls
+  std::vector<std::shared_ptr<Decl>> decls;
 };
 
-struct Program : AstNode {
-  explicit Program(std::vector<std::shared_ptr<Decl>> decls)
+struct AstRoot : AstNode {
+  explicit AstRoot(std::vector<std::shared_ptr<Decl>> decls)
       : decls(std::move(decls)) {}
 
   MENHIR_AST_ACCEPT
