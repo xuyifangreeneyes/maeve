@@ -17,7 +17,7 @@ namespace ast {
 struct AstNode {
   virtual ~AstNode() = default;
 
-  virtual void accept(const Visitor &visitor) = 0;
+  virtual void accept(Visitor &visitor) = 0;
 };
 
 struct Type : AstNode {
@@ -29,7 +29,7 @@ struct BaseType : AstNode {
 };
 
 struct BuiltinType : BaseType {
-  enum Kind = {Int, Bool, String, Null};
+  enum Kind {Int, Bool, String, Null};
 
   explicit BuiltinType(Kind kind) : kind(kind) {}
 
@@ -38,8 +38,10 @@ struct BuiltinType : BaseType {
   Kind kind;
 };
 
+struct ClassDecl;
+
 struct ClassType : BaseType {
-  explicit ClassType(const std::string &name) : name(name) {}
+  explicit ClassType(std::string name) : name(std::move(name)) {}
 
   MENHIR_AST_ACCEPT
 
@@ -64,8 +66,8 @@ struct Expr : AstNode {
 };
 
 struct BinaryExpr : Expr {
-  enum Op = {
-      Mul, Div, Mod, Add,    Sub,   Lsft,   Rrft, Lt, Gt,     Le,
+  enum Op {
+      Mul, Div, Mod, Add,    Sub,   Lsft,   Rsft, Lt, Gt,     Le,
       Ge,  Eq,  Neq, BitAnd, BitOr, BitXor, And,  Or, Assign,
   };
 
@@ -79,7 +81,10 @@ struct BinaryExpr : Expr {
 };
 
 struct UnaryExpr : Expr {
-  enum Op = {PreInc, PreDec, PostInc, PostDec, Pos, Neg, Not, BitNot};
+  enum Op {
+    PreInc, PreDec, PostInc, PostDec,
+    Pos, Neg, Not, BitNot
+  };
 
   UnaryExpr(Op op, std::shared_ptr<Expr> operand)
       : op(op), operand(std::move(operand)) {}
@@ -102,7 +107,7 @@ struct FunctionCall : Expr {
 };
 
 struct ArrayAccess : Expr {
-  ArrayAccess(std::shared_ptr<Expr> array, index)
+  ArrayAccess(std::shared_ptr<Expr> array, std::shared_ptr<Expr> index)
       : array(std::move(array)), index(std::move(index)) {}
 
   MENHIR_AST_ACCEPT
@@ -122,7 +127,7 @@ struct MemberAccess : Expr {
 
 struct NewExpr : Expr {
   NewExpr(std::string name, std::size_t dim,
-          std::vector<std::shared_ptr<Expr>> shape)
+          std::vector<std::shared_ptr<Expr>> shape = {})
       : name(std::move(name)), dim(dim), shape(std::move(shape)) {}
 
   MENHIR_AST_ACCEPT
@@ -131,6 +136,8 @@ struct NewExpr : Expr {
   std::size_t dim;
   std::vector<std::shared_ptr<Expr>> shape;
 };
+
+struct VarDecl;
 
 struct VarExpr : Expr {
   explicit VarExpr(std::string name) : name(std::move(name)) {}
@@ -197,6 +204,14 @@ struct VarDeclStmt : Stmt {
   std::shared_ptr<VarDecl> varDecl;
 };
 
+struct ExprStmt : Stmt {
+  explicit ExprStmt(std::shared_ptr<Expr> expr) : expr(std::move(expr)) {}
+
+  MENHIR_AST_ACCEPT
+
+  std::shared_ptr<Expr> expr;
+};
+
 struct IfStmt : Stmt {
   IfStmt(std::shared_ptr<Expr> cond, std::shared_ptr<Stmt> then,
          std::shared_ptr<Stmt> otherwise)
@@ -256,7 +271,7 @@ struct Decl : AstNode {
 
 struct VarDecl : Decl {
   VarDecl(std::string name, std::shared_ptr<Type> type,
-          std::shared_ptr<Expr> init)
+          std::shared_ptr<Expr> init = nullptr)
       : name(std::move(name)), type(std::move(type)),
         initExpr(std::move(initExpr)) {}
 
@@ -271,9 +286,8 @@ struct FunctionDecl : Decl {
   FunctionDecl(std::string name, std::shared_ptr<Type> retType,
                std::vector<std::shared_ptr<VarDecl>> args,
                std::shared_ptr<CompoundStmt> body)
-      : name(std::move(name)),
-        retType(std::move(retType), args(std::move(args)),
-                body(std::move(body))) {}
+      : name(std::move(name)), retType(std::move(retType)),
+        args(std::move(args)), body(std::move(body)) {}
 
   MENHIR_AST_ACCEPT
 
@@ -291,6 +305,15 @@ struct ClassDecl : Decl {
 
   std::string name;
   std::vector<std::shared_ptr<Decl>> decls
+};
+
+struct Program : AstNode {
+  explicit Program(std::vector<std::shared_ptr<Decl>> decls)
+      : decls(std::move(decls)) {}
+
+  MENHIR_AST_ACCEPT
+
+  std::vector<std::shared_ptr<Decl>> decls;
 };
 
 } // namespace ast

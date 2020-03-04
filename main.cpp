@@ -1,3 +1,6 @@
+
+#include <memory>
+#include <iostream>
 #include "antlr4-runtime/MxLexer.h"
 #include "antlr4-runtime/MxParser.h"
 
@@ -6,7 +9,7 @@ int main() {
   MxLexer lexer(&fin);
   antlr4::CommonTokenStream tokens(&lexer);
   MxParser parser(&tokens);
-  auto prog = parser.prog();
+  auto prog = parser.program();
   return 0;
 }
 

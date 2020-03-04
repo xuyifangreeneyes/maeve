@@ -11,7 +11,8 @@ set(HEADERS
   antlr4-runtime/antlr4-runtime.h
   ast/ast_builder.h
   ast/node.h
-  ast/visitor.h)
+  ast/visitor.h
+  utils/error.h)
 
 set(SOURCES
   main.cpp
