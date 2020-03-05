@@ -20,6 +20,9 @@ void Printer::visit(BuiltinType &node) {
   case Kind::String:
     content += "string";
     break;
+  case Kind::Void:
+    content += "void";
+    break;
   default:
     assert(false);
   }
@@ -32,7 +35,7 @@ void Printer::visit(ArrayType &node) {
   println("ArrayType");
   ++indent;
   visit(*node.baseType);
-  println("dim " + std::to_string(node.dim));
+  println("dim: " + std::to_string(node.dim));
   --indent;
 }
 
@@ -43,9 +46,9 @@ void Printer::visit(BinaryExpr &node) {
                                   "BitXor", "And",  "Or",  "Assign"};
   println("BinaryExpr " + ops[node.op]);
   ++indent;
-  println("lhs");
+  println("lhs:");
   visit(*node.lhs);
-  println("rhs");
+  println("rhs:");
   visit(*node.rhs);
   --indent;
 }
@@ -53,7 +56,7 @@ void Printer::visit(BinaryExpr &node) {
 void Printer::visit(UnaryExpr &node) {
   std::vector<std::string> ops = {"PreInc", "PreDec", "PostInc", "PostDec",
                                   "Pos",    "Neg",    "Not",     "BitNot"};
-  println("UnaryExpr" + ops[node.op]);
+  println("UnaryExpr " + ops[node.op]);
   ++indent;
   visit(*node.operand);
   --indent;
@@ -62,9 +65,16 @@ void Printer::visit(UnaryExpr &node) {
 void Printer::visit(FunctionCall &node) {
   println("FunctionCall");
   ++indent;
-  println("args");
-  for (auto &&arg : node.args) {
-    visit(*arg);
+  if (node.instance) {
+    println("instance:");
+    visit(*node.instance);
+  }
+  println("method: " + node.method);
+  if (!node.args.empty()) {
+    println("args:");
+    for (auto &&arg : node.args) {
+      visit(*arg);
+    }
   }
   --indent;
 }
@@ -72,9 +82,9 @@ void Printer::visit(FunctionCall &node) {
 void Printer::visit(ArrayAccess &node) {
   println("ArrayAccess");
   ++indent;
-  println("array");
+  println("array:");
   visit(*node.array);
-  println("index");
+  println("index:");
   visit(*node.index);
   --indent;
 }
@@ -82,9 +92,9 @@ void Printer::visit(ArrayAccess &node) {
 void Printer::visit(MemberAccess &node) {
   println("MemberAccess");
   ++indent;
-  println("instance");
+  println("instance:");
   visit(*node.instance);
-  println("field");
+  println("field:");
   println(node.field);
   --indent;
 }
@@ -93,14 +103,14 @@ void Printer::visit(NewExpr &node) {
   println("NewExpr");
   ++indent;
   println(node.name);
-  println("dim " + std::to_string(node.dim));
+  println("dim: " + std::to_string(node.dim));
   for (auto &&size : node.shape) {
     visit(*size);
   }
   --indent;
 }
 
-void Printer::visit(VarExpr &node) { println("VarExpr" + node.name); }
+void Printer::visit(VarExpr &node) { println("VarExpr " + node.name); }
 
 void Printer::visit(LiteralInt &node) {
   println("LiteralInt " + std::to_string(node.value));
@@ -142,12 +152,12 @@ void Printer::visit(VarDeclStmt &node) {
 void Printer::visit(IfStmt &node) {
   println("IfStmt");
   ++indent;
-  println("cond");
+  println("cond:");
   visit(*node.cond);
-  println("then");
+  println("then:");
   visit(*node.then);
   if (node.otherwise) {
-    println("else");
+    println("else:");
     visit(*node.otherwise);
   }
   --indent;
@@ -157,18 +167,18 @@ void Printer::visit(ForStmt &node) {
   println("ForStmt");
   ++indent;
   if (node.init) {
-    println("init");
+    println("init:");
     visit(*node.init);
   }
   if (node.cond) {
-    println("cond");
+    println("cond:");
     visit(*node.cond);
   }
   if (node.step) {
-    println("step");
+    println("step:");
     visit(*node.step);
   }
-  println("body");
+  println("body:");
   visit(*node.body);
   --indent;
 }
@@ -176,9 +186,9 @@ void Printer::visit(ForStmt &node) {
 void Printer::visit(WhileStmt &node) {
   println("WhileStmt");
   ++indent;
-  println("cond");
+  println("cond:");
   visit(*node.cond);
-  println("body");
+  println("body:");
   visit(*node.body);
   --indent;
 }
@@ -199,10 +209,10 @@ void Printer::visit(EmptyStmt &node) { println("EmptyStmt"); }
 void Printer::visit(VarDecl &node) {
   println("VarDecl " + node.name);
   ++indent;
-  println("type");
+  println("type:");
   visit(*node.type);
   if (node.initExpr) {
-    println("initExpr");
+    println("initExpr:");
     visit(*node.initExpr);
   }
   --indent;
@@ -212,16 +222,16 @@ void Printer::visit(FunctionDecl &node) {
   println("FunctionDecl " + node.name);
   ++indent;
   if (node.retType) {
-    println("retType");
+    println("retType:");
     visit(*node.retType);
   }
   if (!node.args.empty()) {
-    println("args");
+    println("args:");
     for (auto &&arg : node.args) {
       visit(*arg);
     }
   }
-  println("body");
+  println("body:");
   visit(*node.body);
   --indent;
 }
@@ -229,8 +239,8 @@ void Printer::visit(FunctionDecl &node) {
 void Printer::visit(ClassDecl &node) {
   println("ClassDecl " + node.name);
   ++indent;
-  for (auto &&decl : node.decls) {
-    visit(*decl);
+  for (auto &it : node.decls) {
+    visit(*it.second);
   }
   --indent;
 }
@@ -243,7 +253,7 @@ void Printer::visit(AstRoot &node) {
 
 void Printer::println(const std::string &content) {
   for (size_t i = 0; i < indent; ++i) {
-    out << '\t';
+    out << "  ";
   }
   out << content << std::endl;
 }

@@ -20,7 +20,7 @@
 using namespace maeve::ast;
 
 int main() {
-  antlr4::ANTLRFileStream fin("/Users/xuyifan/Documents/maeve/tmp/1.mx");
+  antlr4::ANTLRFileStream fin("/Users/xuyifan/Documents/maeve/tmp/5.mx");
   MxLexer lexer(&fin);
   antlr4::CommonTokenStream tokens(&lexer);
   MxParser parser(&tokens);

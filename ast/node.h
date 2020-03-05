@@ -5,11 +5,12 @@
 #include "visitor.h"
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #define MAEVE_AST_PURE_ACCEPT void accept(Visitor &visitor) override = 0;
 
-#define MAEVE_AST_ACCEPT                                                      \
+#define MAEVE_AST_ACCEPT                                                       \
   void accept(Visitor &visitor) override { visitor.visit(*this); }
 
 namespace maeve {
@@ -30,7 +31,7 @@ struct BaseType : Type {
 };
 
 struct BuiltinType : BaseType {
-  enum Kind { Int, Bool, String };
+  enum Kind { Int, Bool, String, Void };
 
   explicit BuiltinType(Kind kind) : kind(kind) {}
 
@@ -109,13 +110,18 @@ struct UnaryExpr : Expr {
 };
 
 struct FunctionCall : Expr {
-  FunctionCall(std::shared_ptr<Expr> callee,
+  FunctionCall(std::shared_ptr<Expr> instance, std::string method,
                std::vector<std::shared_ptr<Expr>> args)
-      : callee(std::move(callee)), args(std::move(args)) {}
+      : instance(std::move(instance)), method(std::move(method)),
+        args(std::move(args)) {}
+
+  //  FunctionCall(std::string method, std::vector<std::shared_ptr<Expr>> args)
+  //    : FunctionCall(nullptr, std::move(method), std::move(args)) {}
 
   MAEVE_AST_ACCEPT
 
-  std::shared_ptr<Expr> callee;
+  std::shared_ptr<Expr> instance;
+  std::string method;
   std::vector<std::shared_ptr<Expr>> args;
 };
 
@@ -197,7 +203,7 @@ struct Stmt : AstNode {
   MAEVE_AST_PURE_ACCEPT
 };
 
-struct CompoundStmt : AstNode {
+struct CompoundStmt : Stmt {
   explicit CompoundStmt(std::vector<std::shared_ptr<Stmt>> stmts)
       : stmts(std::move(stmts)) {}
 
@@ -277,18 +283,21 @@ struct EmptyStmt : Stmt {
 };
 
 struct Decl : AstNode {
+  explicit Decl(std::string name) : name(std::move(name)) {}
+
   MAEVE_AST_PURE_ACCEPT
+
+  std::string name;
 };
 
 struct VarDecl : Decl {
   VarDecl(std::string name, std::shared_ptr<Type> type,
           std::shared_ptr<Expr> initExpr = nullptr)
-      : name(std::move(name)), type(std::move(type)),
+      : Decl(std::move(name)), type(std::move(type)),
         initExpr(std::move(initExpr)) {}
 
   MAEVE_AST_ACCEPT
 
-  std::string name;
   std::shared_ptr<Type> type;
   std::shared_ptr<Expr> initExpr;
 };
@@ -297,25 +306,22 @@ struct FunctionDecl : Decl {
   FunctionDecl(std::string name, std::shared_ptr<Type> retType,
                std::vector<std::shared_ptr<VarDecl>> args,
                std::shared_ptr<CompoundStmt> body)
-      : name(std::move(name)), retType(std::move(retType)),
+      : Decl(std::move(name)), retType(std::move(retType)),
         args(std::move(args)), body(std::move(body)) {}
 
   MAEVE_AST_ACCEPT
 
-  std::string name;
   std::shared_ptr<Type> retType;
   std::vector<std::shared_ptr<VarDecl>> args;
   std::shared_ptr<CompoundStmt> body;
 };
 
 struct ClassDecl : Decl {
-  ClassDecl(std::string name, std::vector<std::shared_ptr<Decl>> decls)
-      : name(std::move(name)), decls(std::move(decls)) {}
+  ClassDecl(std::string name, std::vector<std::shared_ptr<Decl>> decls_);
 
   MAEVE_AST_ACCEPT
 
-  std::string name;
-  std::vector<std::shared_ptr<Decl>> decls;
+  std::unordered_map<std::string, std::shared_ptr<Decl>> decls;
 };
 
 struct AstRoot : AstNode {

@@ -1,8 +1,17 @@
 #include "builder.h"
 #include "../utils/error.h"
+#include "node.h"
 
 namespace maeve {
 namespace ast {
+
+std::shared_ptr<CompoundStmt> asBlock(std::shared_ptr<Stmt> stmt) {
+  if (auto p = std::dynamic_pointer_cast<CompoundStmt>(stmt)) {
+    return p;
+  }
+  std::vector<std::shared_ptr<Stmt>> stmts = { stmt };
+  return std::make_shared<CompoundStmt>(std::move(stmts));
+}
 
 antlrcpp::Any Builder::visitProgram(MxParser::ProgramContext *ctx) {
   return wrap_<AstRoot>(collect_<Decl>(ctx->declaration()));
@@ -61,9 +70,9 @@ antlrcpp::Any Builder::visitClassDecl(MxParser::ClassDeclContext *ctx) {
 
 antlrcpp::Any Builder::visitFunctionDecl(MxParser::FunctionDeclContext *ctx) {
   std::string name = ctx->Identifier()->getText();
-  std::shared_ptr<Type> retType;
-  if (!ctx->VOID())
-    retType = visit_<Type>(ctx->type());
+  std::shared_ptr<Type> retType =
+      (ctx->VOID()) ? std::make_shared<BuiltinType>(BuiltinType::Void)
+                    : visit_<Type>(ctx->type());
   std::vector<std::shared_ptr<VarDecl>> args;
   auto argDecls = ctx->parameterDecls();
   if (argDecls) {
@@ -107,16 +116,16 @@ antlrcpp::Any Builder::visitBlankStat(MxParser::BlankStatContext *ctx) {
 
 antlrcpp::Any Builder::visitIfStatement(MxParser::IfStatementContext *ctx) {
   std::shared_ptr<Expr> cond = visit_<Expr>(ctx->expr());
-  std::shared_ptr<Stmt> then = visit_<Stmt>(ctx->statement()[0]);
+  std::shared_ptr<Stmt> then = asBlock(visit_<Stmt>(ctx->statement()[0]));
   std::shared_ptr<Stmt> otherwise = ctx->statement().size() == 1
                                         ? nullptr
-                                        : visit_<Stmt>(ctx->statement()[1]);
+                                        : asBlock(visit_<Stmt>(ctx->statement()[1]));
   return wrap_<IfStmt>(std::move(cond), std::move(then), std::move(otherwise));
 }
 
 antlrcpp::Any Builder::visitWhileStat(MxParser::WhileStatContext *ctx) {
   std::shared_ptr<Expr> cond = visit_<Expr>(ctx->expr());
-  std::shared_ptr<Stmt> body = visit_<Stmt>(ctx->statement());
+  std::shared_ptr<Stmt> body = asBlock(visit_<Stmt>(ctx->statement()));
   return wrap_<WhileStmt>(std::move(cond), std::move(body));
 }
 
@@ -124,7 +133,7 @@ antlrcpp::Any Builder::visitForStat(MxParser::ForStatContext *ctx) {
   std::shared_ptr<Expr> init = visit_<Expr>(ctx->init);
   std::shared_ptr<Expr> cond = visit_<Expr>(ctx->cond);
   std::shared_ptr<Expr> step = visit_<Expr>(ctx->step);
-  std::shared_ptr<Stmt> body = visit_<Stmt>(ctx->statement());
+  std::shared_ptr<Stmt> body = asBlock(visit_<Stmt>(ctx->statement()));
   return wrap_<ForStmt>(std::move(init), std::move(cond), std::move(step),
                         std::move(body));
 }
@@ -255,13 +264,23 @@ antlrcpp::Any Builder::visitBinaryExpr(MxParser::BinaryExprContext *ctx) {
 }
 
 antlrcpp::Any Builder::visitFunctionCall(MxParser::FunctionCallContext *ctx) {
-  std::shared_ptr<Expr> callee = visit_<Expr>(ctx->expr());
+  std::shared_ptr<Expr> instance;
+  std::string method;
+  if (auto *p = dynamic_cast<MxParser::IdExprContext *>(ctx->expr())) {
+    method = p->getText();
+  } else {
+    auto *q = dynamic_cast<MxParser::MemberAccessContext *>(ctx->expr());
+    assert(q);
+    instance = visit_<Expr>(q->expr());
+    method = q->Identifier()->getText();
+  }
   std::vector<std::shared_ptr<Expr>> args;
   auto argList = ctx->parameterList();
   if (argList) {
     args = collect_<Expr>(argList->expr());
   }
-  return wrap_<FunctionCall>(std::move(callee), std::move(args));
+  return wrap_<FunctionCall>(std::move(instance), std::move(method),
+                             std::move(args));
 }
 
 antlrcpp::Any Builder::visitParenExpr(MxParser::ParenExprContext *ctx) {

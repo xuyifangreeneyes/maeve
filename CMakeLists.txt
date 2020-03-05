@@ -14,7 +14,10 @@ set(HEADERS
   ast/node.h
   ast/visitor.h
   ast/printer.h
-  utils/error.h)
+  semantic/semantic_checker.h
+  semantic/symbol_table.h
+  utils/error.h
+  )
 
 set(SOURCES
   main.cpp
@@ -23,7 +26,11 @@ set(SOURCES
   antlr4-runtime/MxVisitor.cpp
   antlr4-runtime/MxBaseVisitor.cpp
   ast/builder.cpp
-  ast/printer.cpp)
+  ast/node.cpp
+  ast/printer.cpp
+  semantic/semantic_checker.cpp
+  semantic/symbol_table.cpp
+  )
 
 add_executable(maeve ${HEADERS} ${SOURCES})
 target_include_directories(maeve PRIVATE /usr/local/include/antlr4-runtime)
