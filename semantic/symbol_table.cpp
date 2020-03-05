@@ -2,7 +2,7 @@
 
 namespace maeve {
 
-SymbolTable::SymbolTable() : root(nullptr) {
+SymbolTable::SymbolTable() : root(std::make_shared<Scope>(nullptr)) {
   current = root;
 }
 
@@ -30,6 +30,13 @@ std::shared_ptr<ast::Decl> SymbolTable::lookup(const std::string &name) {
     }
     scope = scope->parent;
   }
+  return nullptr;
+}
+
+std::shared_ptr<ast::Decl> SymbolTable::globalLookup(const std::string &name) {
+  auto iter = root->symbols.find(name);
+  if (iter != root->symbols.end())
+    return iter->second;
   return nullptr;
 }
 

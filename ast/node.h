@@ -16,24 +16,37 @@
 namespace maeve {
 namespace ast {
 
-struct AstNode {
+struct AstNode : std::enable_shared_from_this<AstNode> {
   virtual ~AstNode() = default;
 
   virtual void accept(Visitor &visitor) = 0;
 };
 
 struct Type : AstNode {
+
+  virtual explicit operator std::string() const = 0;
+
   MAEVE_AST_PURE_ACCEPT
 };
 
 struct BaseType : Type {
+
+  explicit operator std::string() const override = 0;
+
   MAEVE_AST_PURE_ACCEPT
 };
 
 struct BuiltinType : BaseType {
-  enum Kind { Int, Bool, String, Void };
+  enum Kind { Int, Bool, String, Void, Null };
 
   explicit BuiltinType(Kind kind) : kind(kind) {}
+
+  static std::string kind2str(Kind kind) {
+    static std::vector<std::string> ops = {"int", "bool", "string", "void", "null"};
+    return ops[kind];
+  }
+
+  explicit operator std::string() const override { return kind2str(kind); }
 
   MAEVE_AST_ACCEPT
 
@@ -45,15 +58,21 @@ struct ClassType : BaseType {
 
   MAEVE_AST_ACCEPT
 
+  explicit operator std::string() const override { return name; }
+
   std::string name;
   std::weak_ptr<ClassDecl> classDecl;
 };
 
-struct ArrayType : AstNode {
+struct ArrayType : Type {
   ArrayType(std::shared_ptr<BaseType> baseType, std::size_t dim)
       : baseType(std::move(baseType)), dim(dim) {}
 
   MAEVE_AST_ACCEPT
+
+  explicit operator std::string() const override {
+    return std::string(*baseType) + "^" + std::to_string(dim);
+  }
 
   std::shared_ptr<BaseType> baseType;
   std::size_t dim;
@@ -88,6 +107,14 @@ struct BinaryExpr : Expr {
     Assign,
   };
 
+  static std::string op2str(Op op) {
+    static std::vector<std::string> ops = {
+        "Mul",   "Div",    "Mod", "Add", "Sub",   "Lsft", "Rsft",
+        "Lt",    "Gt",     "Le",  "Ge",  "Eq",    "Neq",  "BitAnd",
+        "BitOr", "BitXor", "And", "Or",  "Assign"};
+    return ops[op];
+  }
+
   BinaryExpr(Op op, std::shared_ptr<Expr> lhs, std::shared_ptr<Expr> rhs)
       : op(op), lhs(std::move(lhs)), rhs(std::move(rhs)) {}
 
@@ -99,6 +126,12 @@ struct BinaryExpr : Expr {
 
 struct UnaryExpr : Expr {
   enum Op { PreInc, PreDec, PostInc, PostDec, Pos, Neg, Not, BitNot };
+
+  static std::string op2str(Op op) {
+    static std::vector<std::string> ops = {"PreInc", "PreDec", "PostInc", "PostDec",
+                                           "Pos",    "Neg",    "Not",     "BitNot"};
+    return ops[op];
+  }
 
   UnaryExpr(Op op, std::shared_ptr<Expr> operand)
       : op(op), operand(std::move(operand)) {}

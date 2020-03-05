@@ -19,6 +19,7 @@ public:
   bool addSymbol(const std::string &name, std::shared_ptr<ast::Decl> decl);
 
   std::shared_ptr<ast::Decl> lookup(const std::string &name);
+  std::shared_ptr<ast::Decl> globalLookup(const std::string &name);
 
 private:
   struct Scope {

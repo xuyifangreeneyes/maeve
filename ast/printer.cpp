@@ -8,25 +8,7 @@ namespace ast {
 void Printer::visit(AstNode &node) { node.accept(*this); }
 
 void Printer::visit(BuiltinType &node) {
-  using Kind = BuiltinType::Kind;
-  std::string content = "BuiltinType ";
-  switch (node.kind) {
-  case Kind::Int:
-    content += "int";
-    break;
-  case Kind::Bool:
-    content += "bool";
-    break;
-  case Kind::String:
-    content += "string";
-    break;
-  case Kind::Void:
-    content += "void";
-    break;
-  default:
-    assert(false);
-  }
-  println(content);
+  println("BuiltinType " + std::string(node));
 }
 
 void Printer::visit(ClassType &node) { println("ClassType " + node.name); }
@@ -40,11 +22,7 @@ void Printer::visit(ArrayType &node) {
 }
 
 void Printer::visit(BinaryExpr &node) {
-  std::vector<std::string> ops = {"Mul",    "Div",  "Mod", "Add",    "Sub",
-                                  "Lsft",   "Rsft", "Lt",  "Gt",     "Le",
-                                  "Ge",     "Eq",   "Neq", "BitAnd", "BitOr",
-                                  "BitXor", "And",  "Or",  "Assign"};
-  println("BinaryExpr " + ops[node.op]);
+  println("BinaryExpr " + BinaryExpr::op2str(node.op));
   ++indent;
   println("lhs:");
   visit(*node.lhs);
@@ -54,9 +32,7 @@ void Printer::visit(BinaryExpr &node) {
 }
 
 void Printer::visit(UnaryExpr &node) {
-  std::vector<std::string> ops = {"PreInc", "PreDec", "PostInc", "PostDec",
-                                  "Pos",    "Neg",    "Not",     "BitNot"};
-  println("UnaryExpr " + ops[node.op]);
+  println("UnaryExpr " + UnaryExpr::op2str(node.op));
   ++indent;
   visit(*node.operand);
   --indent;
@@ -239,7 +215,7 @@ void Printer::visit(FunctionDecl &node) {
 void Printer::visit(ClassDecl &node) {
   println("ClassDecl " + node.name);
   ++indent;
-  for (auto &it : node.decls) {
+  for (auto &&it : node.decls) {
     visit(*it.second);
   }
   --indent;

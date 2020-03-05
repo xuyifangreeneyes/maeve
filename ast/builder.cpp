@@ -9,7 +9,7 @@ std::shared_ptr<CompoundStmt> asBlock(std::shared_ptr<Stmt> stmt) {
   if (auto p = std::dynamic_pointer_cast<CompoundStmt>(stmt)) {
     return p;
   }
-  std::vector<std::shared_ptr<Stmt>> stmts = { stmt };
+  std::vector<std::shared_ptr<Stmt>> stmts = {stmt};
   return std::make_shared<CompoundStmt>(std::move(stmts));
 }
 
@@ -70,6 +70,8 @@ antlrcpp::Any Builder::visitClassDecl(MxParser::ClassDeclContext *ctx) {
 
 antlrcpp::Any Builder::visitFunctionDecl(MxParser::FunctionDeclContext *ctx) {
   std::string name = ctx->Identifier()->getText();
+  // `retType` of a class constructor is `nullptr` while `retType` of a void
+  // function is std::shared_ptr<BuiltinType>(BuiltinType::Void).
   std::shared_ptr<Type> retType =
       (ctx->VOID()) ? std::make_shared<BuiltinType>(BuiltinType::Void)
                     : visit_<Type>(ctx->type());
@@ -117,9 +119,9 @@ antlrcpp::Any Builder::visitBlankStat(MxParser::BlankStatContext *ctx) {
 antlrcpp::Any Builder::visitIfStatement(MxParser::IfStatementContext *ctx) {
   std::shared_ptr<Expr> cond = visit_<Expr>(ctx->expr());
   std::shared_ptr<Stmt> then = asBlock(visit_<Stmt>(ctx->statement()[0]));
-  std::shared_ptr<Stmt> otherwise = ctx->statement().size() == 1
-                                        ? nullptr
-                                        : asBlock(visit_<Stmt>(ctx->statement()[1]));
+  std::shared_ptr<Stmt> otherwise =
+      ctx->statement().size() == 1 ? nullptr
+                                   : asBlock(visit_<Stmt>(ctx->statement()[1]));
   return wrap_<IfStmt>(std::move(cond), std::move(then), std::move(otherwise));
 }
 
