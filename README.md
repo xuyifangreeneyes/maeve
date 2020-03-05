@@ -1,3 +1,3 @@
-# menhir
+# maeve
 
-menhir compiles Mx* to llvm.
+maeve compiles Mx* to llvm.

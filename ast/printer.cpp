@@ -2,7 +2,7 @@
 #include "node.h"
 #include <iostream>
 
-namespace menhir {
+namespace maeve {
 namespace ast {
 
 void Printer::visit(AstNode &node) { node.accept(*this); }
@@ -249,4 +249,4 @@ void Printer::println(const std::string &content) {
 }
 
 } // namespace ast
-} // namespace menhir
+} // namespace maeve

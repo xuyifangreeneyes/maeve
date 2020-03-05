@@ -1,12 +1,12 @@
-#ifndef MENHIR_AST_BUILDER_H
-#define MENHIR_AST_BUILDER_H
+#ifndef MAEVE_AST_BUILDER_H
+#define MAEVE_AST_BUILDER_H
 
 #include "../antlr4-runtime/MxBaseVisitor.h"
 #include "node.h"
 #include <memory>
 #include <vector>
 
-namespace menhir {
+namespace maeve {
 namespace ast {
 
 class Builder : public MxBaseVisitor {
@@ -109,6 +109,6 @@ public:
 };
 
 } // namespace ast
-} // namespace menhir
+} // namespace maeve
 
-#endif // MENHIR_AST_BUILDER_H
+#endif // MAEVE_AST_BUILDER_H

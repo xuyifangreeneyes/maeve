@@ -1,7 +1,7 @@
-#ifndef MENHIR_FWD_H
-#define MENHIR_FWD_H
+#ifndef MAEVE_AST_FWD_H
+#define MAEVE_AST_FWD_H
 
-namespace menhir {
+namespace maeve {
 namespace ast {
 
 class Visitor;
@@ -48,6 +48,6 @@ struct ClassDecl;
 struct AstRoot;
 
 } // namespace ast
-} // namespace menhir
+} // namespace maeve
 
-#endif // MENHIR_FWD_H
+#endif // MAEVE_AST_FWD_H

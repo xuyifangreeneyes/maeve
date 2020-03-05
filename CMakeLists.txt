@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.13)
-project(menhir)
+project(maeve)
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -25,6 +25,6 @@ set(SOURCES
   ast/builder.cpp
   ast/printer.cpp)
 
-add_executable(menhir ${HEADERS} ${SOURCES})
-target_include_directories(menhir PRIVATE /usr/local/include/antlr4-runtime)
-target_link_libraries(menhir PRIVATE -lantlr4-runtime)
+add_executable(maeve ${HEADERS} ${SOURCES})
+target_include_directories(maeve PRIVATE /usr/local/include/antlr4-runtime)
+target_link_libraries(maeve PRIVATE -lantlr4-runtime)

@@ -17,22 +17,22 @@
 //
 //};
 
-using namespace menhir::ast;
+using namespace maeve::ast;
 
 int main() {
-  antlr4::ANTLRFileStream fin("/Users/xuyifan/Documents/menhir/tmp/1.mx");
+  antlr4::ANTLRFileStream fin("/Users/xuyifan/Documents/maeve/tmp/1.mx");
   MxLexer lexer(&fin);
   antlr4::CommonTokenStream tokens(&lexer);
   MxParser parser(&tokens);
   auto prog = parser.program();
   if (lexer.getNumberOfSyntaxErrors() > 0 ||
       parser.getNumberOfSyntaxErrors() > 0)
-    throw menhir::CompileError("syntax error");
+    throw maeve::CompileError("syntax error");
 
-  menhir::ast::Builder astBuilder;
+  maeve::ast::Builder astBuilder;
   auto astRoot =
-      astBuilder.visit(prog).as<std::shared_ptr<menhir::ast::AstNode>>();
-  menhir::ast::Printer astPrinter(std::cout);
+      astBuilder.visit(prog).as<std::shared_ptr<maeve::ast::AstNode>>();
+  maeve::ast::Printer astPrinter(std::cout);
   astPrinter.visit(*astRoot);
 
   //  Foo f;

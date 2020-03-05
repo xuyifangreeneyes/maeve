@@ -1,7 +1,7 @@
 #include "builder.h"
 #include "../utils/error.h"
 
-namespace menhir {
+namespace maeve {
 namespace ast {
 
 antlrcpp::Any Builder::visitProgram(MxParser::ProgramContext *ctx) {
@@ -330,4 +330,4 @@ Builder::visitSubscriptAccess(MxParser::SubscriptAccessContext *ctx) {
 }
 
 } // namespace ast
-} // namespace menhir
+} // namespace maeve

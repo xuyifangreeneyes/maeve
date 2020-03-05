@@ -1,10 +1,10 @@
-#ifndef MENHIR_AST_DUMPER_H
-#define MENHIR_AST_DUMPER_H
+#ifndef MAEVE_AST_PRINTER_H
+#define MAEVE_AST_PRINTER_H
 
 #include "visitor.h"
 #include <iostream>
 
-namespace menhir {
+namespace maeve {
 namespace ast {
 
 class Printer : public Visitor {
@@ -54,6 +54,6 @@ private:
 };
 
 } // namespace ast
-} // namespace menhir
+} // namespace maeve
 
-#endif // MENHIR_AST_DUMPER_H
+#endif // MAEVE_AST_PRINTER_H

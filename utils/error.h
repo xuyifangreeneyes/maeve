@@ -1,14 +1,14 @@
-#ifndef MENHIR_ERROR_H
-#define MENHIR_ERROR_H
+#ifndef MAEVE_ERROR_H
+#define MAEVE_ERROR_H
 
 #include <exception>
 #include <string>
 
-namespace menhir {
+namespace maeve {
 
 class CompileError : public std::exception {
 public:
-  CompileError(std::string msg) : msg(std::move(msg)) {}
+  explicit CompileError(std::string msg) : msg(std::move(msg)) {}
 
   const char *what() const noexcept override { return msg.c_str(); }
 
@@ -16,6 +16,6 @@ private:
   std::string msg;
 };
 
-} // namespace menhir
+} // namespace maeve
 
-#endif //MENHIR_ERROR_H
+#endif //MAEVE_ERROR_H

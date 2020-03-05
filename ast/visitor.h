@@ -1,9 +1,9 @@
-#ifndef MENHIR_VISITOR_H
-#define MENHIR_VISITOR_H
+#ifndef MAEVE_AST_VISITOR_H
+#define MAEVE_AST_VISITOR_H
 
 #include "fwd.h"
 
-namespace menhir {
+namespace maeve {
 namespace ast {
 
 class Visitor {
@@ -51,6 +51,6 @@ public:
 };
 
 } // namespace ast
-} // namespace menhir
+} // namespace maeve
 
-#endif // MENHIR_VISITOR_H
+#endif // MAEVE_AST_VISITOR_H
