@@ -42,7 +42,8 @@ struct BuiltinType : BaseType {
   explicit BuiltinType(Kind kind) : kind(kind) {}
 
   static std::string kind2str(Kind kind) {
-    static std::vector<std::string> ops = {"int", "bool", "string", "void", "null"};
+    static std::vector<std::string> ops = {"int", "bool", "string", "void",
+                                           "null"};
     return ops[kind];
   }
 
@@ -82,6 +83,7 @@ struct Expr : AstNode {
   MAEVE_AST_PURE_ACCEPT
 
   std::shared_ptr<Type> type;
+  bool lvalue = false;
 };
 
 struct BinaryExpr : Expr {
@@ -128,8 +130,9 @@ struct UnaryExpr : Expr {
   enum Op { PreInc, PreDec, PostInc, PostDec, Pos, Neg, Not, BitNot };
 
   static std::string op2str(Op op) {
-    static std::vector<std::string> ops = {"PreInc", "PreDec", "PostInc", "PostDec",
-                                           "Pos",    "Neg",    "Not",     "BitNot"};
+    static std::vector<std::string> ops = {"PreInc",  "PreDec", "PostInc",
+                                           "PostDec", "Pos",    "Neg",
+                                           "Not",     "BitNot"};
     return ops[op];
   }
 
@@ -338,7 +341,7 @@ struct VarDecl : Decl {
 struct FunctionDecl : Decl {
   FunctionDecl(std::string name, std::shared_ptr<Type> retType,
                std::vector<std::shared_ptr<VarDecl>> args,
-               std::shared_ptr<CompoundStmt> body)
+               std::shared_ptr<CompoundStmt> body = nullptr)
       : Decl(std::move(name)), retType(std::move(retType)),
         args(std::move(args)), body(std::move(body)) {}
 

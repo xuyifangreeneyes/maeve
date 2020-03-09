@@ -5,7 +5,7 @@
 namespace maeve {
 namespace ast {
 
-std::shared_ptr<CompoundStmt> asBlock(std::shared_ptr<Stmt> stmt) {
+std::shared_ptr<CompoundStmt> asBlock(const std::shared_ptr<Stmt> &stmt) {
   if (auto p = std::dynamic_pointer_cast<CompoundStmt>(stmt)) {
     return p;
   }
@@ -270,11 +270,12 @@ antlrcpp::Any Builder::visitFunctionCall(MxParser::FunctionCallContext *ctx) {
   std::string method;
   if (auto *p = dynamic_cast<MxParser::IdExprContext *>(ctx->expr())) {
     method = p->getText();
-  } else {
-    auto *q = dynamic_cast<MxParser::MemberAccessContext *>(ctx->expr());
-    assert(q);
+  } else if (auto *q =
+                 dynamic_cast<MxParser::MemberAccessContext *>(ctx->expr())) {
     instance = visit_<Expr>(q->expr());
     method = q->Identifier()->getText();
+  } else {
+    assert(false);
   }
   std::vector<std::shared_ptr<Expr>> args;
   auto argList = ctx->parameterList();

@@ -55,10 +55,15 @@ public:
 private:
   std::shared_ptr<ast::ClassDecl> currentClass;
   std::shared_ptr<ast::FunctionDecl> currentFunc;
-  std::size_t loopCounter;  // count number of loops
+  std::size_t loopCounter; // count number of loops
   SymbolTable symbolTable;
 
   void checkLoop(const std::string &statement);
+  void checkFieldName(const std::string &name);
+
+  void
+  completeSignature(const std::shared_ptr<ast::FunctionDecl> &functionDecl);
+  void visit_(const std::shared_ptr<ast::AstNode> &node);
 };
 
 } // namespace maeve

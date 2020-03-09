@@ -2,6 +2,7 @@
 #define MAEVE_SYMBOL_TABLE_H
 
 #include "../ast/fwd.h"
+#include "../ast/node.h"
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -31,6 +32,15 @@ private:
 
   std::shared_ptr<Scope> current;
   std::shared_ptr<Scope> root;
+
+  void addBuiltin();
+
+  std::shared_ptr<ast::VarDecl> argument(std::string name,
+                                         ast::BuiltinType::Kind kind);
+
+  std::shared_ptr<ast::FunctionDecl>
+  builtinFunction(std::string name, ast::BuiltinType::Kind retKind,
+                  std::vector<std::shared_ptr<ast::VarDecl>> args);
 };
 
 } // namespace maeve
