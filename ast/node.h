@@ -16,8 +16,12 @@
 namespace maeve {
 namespace ast {
 
+using NodeId = std::uintptr_t;
+
 struct AstNode : std::enable_shared_from_this<AstNode> {
   virtual ~AstNode() = default;
+
+  NodeId getID() const { return (NodeId)this; }
 
   virtual void accept(Visitor &visitor) = 0;
 };

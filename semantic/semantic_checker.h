@@ -59,7 +59,6 @@ private:
   SymbolTable symbolTable;
 
   void checkLoop(const std::string &statement);
-  void checkFieldName(const std::string &name);
 
   void
   completeSignature(const std::shared_ptr<ast::FunctionDecl> &functionDecl);

@@ -3,6 +3,16 @@ project(maeve)
 
 set(CMAKE_CXX_STANDARD 17)
 
+set(LLVM_DIR /usr/local/Cellar/llvm/7.0.1/lib/cmake/llvm)
+
+find_package(LLVM REQUIRED CONFIG)
+
+message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
+message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
+
+include_directories(${LLVM_INCLUDE_DIRS})
+add_definitions(${LLVM_DEFINITIONS})
+
 set(HEADERS
   antlr4-runtime/MxLexer.h
   antlr4-runtime/MxParser.h
@@ -16,6 +26,7 @@ set(HEADERS
   ast/printer.h
   semantic/semantic_checker.h
   semantic/symbol_table.h
+  codegen/codegen.h
   utils/error.h
   )
 
@@ -30,8 +41,10 @@ set(SOURCES
   ast/printer.cpp
   semantic/semantic_checker.cpp
   semantic/symbol_table.cpp
+  codegen/codegen.cpp
   )
 
 add_executable(maeve ${HEADERS} ${SOURCES})
+llvm_map_components_to_libnames(llvm_libs support core irreader)
 target_include_directories(maeve PRIVATE /usr/local/include/antlr4-runtime)
-target_link_libraries(maeve PRIVATE -lantlr4-runtime)
+target_link_libraries(maeve PRIVATE -lantlr4-runtime ${llvm_libs})

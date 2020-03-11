@@ -4,6 +4,7 @@
 #include "ast/builder.h"
 #include "ast/node.h"
 #include "ast/printer.h"
+#include "semantic/semantic_checker.h"
 #include "utils/error.h"
 #include <iostream>
 #include <memory>
@@ -20,7 +21,7 @@
 using namespace maeve::ast;
 
 int main() {
-  antlr4::ANTLRFileStream fin("/Users/xuyifan/Documents/maeve/tmp/5.mx");
+  antlr4::ANTLRFileStream fin("/Users/xuyifan/Documents/maeve/tmp/1.mx");
   MxLexer lexer(&fin);
   antlr4::CommonTokenStream tokens(&lexer);
   MxParser parser(&tokens);
@@ -35,6 +36,8 @@ int main() {
   maeve::ast::Printer astPrinter(std::cout);
   astPrinter.visit(*astRoot);
 
+  maeve::SemanticChecker checker;
+  checker.visit(*astRoot);
   //  Foo f;
   //  antlrcpp::Any x(f);
   //  Foo f2 = x.as<Foo>();

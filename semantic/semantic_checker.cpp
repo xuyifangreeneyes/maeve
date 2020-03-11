@@ -484,7 +484,7 @@ void SemanticChecker::visit(ast::ClassDecl &node) {
 void SemanticChecker::visit(ast::AstRoot &node) {
   // Class and global function support forward reference.
   for (auto &&decl : node.decls) {
-    if (std::dynamic_pointer_cast<ast::FunctionDecl>(decl)) {
+    if (std::dynamic_pointer_cast<ast::ClassDecl>(decl)) {
       symbolTable.addSymbol(decl->name, decl);
     }
   }
