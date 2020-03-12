@@ -18,13 +18,19 @@ bool isBuiltinType(const std::string &name) {
 }
 
 bool assignable(const std::shared_ptr<ast::Type> &lhs,
-                const std::shared_ptr<ast::Type> &rhs) {
+                const std::shared_ptr<ast::Expr> &rhsExpr) {
+  std::shared_ptr<ast::Type> rhs = rhsExpr->type;
   if (!lhs || !rhs) {
     return false;
   }
   auto lhs_ = std::string(*lhs);
   auto rhs_ = std::string(*rhs);
   if (rhs_ == "null" && !(std::dynamic_pointer_cast<ast::BuiltinType>(lhs))) {
+    assert(std::dynamic_pointer_cast<ast::LiteralNull>(rhsExpr));
+    // When we meet `LiteralNull` during the construction of LLVM IR, we have
+    // to specify which type of `llvm::ConstantPointerNull` it is. Hence we
+    // update `rhsExpr->type` here.
+    rhsExpr->type = lhs;
     return true;
   }
   return lhs_ == rhs_;
@@ -83,7 +89,7 @@ void SemanticChecker::visit(ast::BinaryExpr &node) {
   visit(*node.rhs);
   using Op = ast::BinaryExpr::Op;
   if (node.op == Op::Assign) {
-    if (!node.lhs->lvalue || !assignable(node.lhs->type, node.rhs->type)) {
+    if (!node.lhs->lvalue || !assignable(node.lhs->type, node.rhs)) {
       throw CompileError("expression is not assignable");
     }
     node.type = node.lhs->type;
@@ -223,7 +229,7 @@ void SemanticChecker::visit(ast::FunctionCall &node) {
   }
   std::size_t n = funcDecl->args.size();
   for (std::size_t i = 0; i < n; ++i) {
-    if (!assignable(funcDecl->args[i]->type, node.args[i]->type)) {
+    if (!assignable(funcDecl->args[i]->type, node.args[i])) {
       throw CompileError("type error");
     }
   }
@@ -398,7 +404,7 @@ void SemanticChecker::visit(ast::ReturnStmt &node) {
     }
   } else {
     visit(*node.value);
-    if (!assignable(currentFunc->retType, node.value->type)) {
+    if (!assignable(currentFunc->retType, node.value)) {
       throw CompileError("return type not match");
     }
   }
@@ -411,7 +417,7 @@ void SemanticChecker::visit(ast::ContinueStmt &node) { checkLoop("continue"); }
 void SemanticChecker::visit(ast::VarDecl &node) {
   if (node.initExpr) {
     visit(*node.initExpr);
-    if (!assignable(node.type, node.initExpr->type)) {
+    if (!assignable(node.type, node.initExpr)) {
       throw CompileError("type error");
     }
   }
@@ -488,13 +494,26 @@ void SemanticChecker::visit(ast::AstRoot &node) {
       symbolTable.addSymbol(decl->name, decl);
     }
   }
+  bool findMain = false;
   for (auto &&decl : node.decls) {
     if (auto functionDecl =
             std::dynamic_pointer_cast<ast::FunctionDecl>(decl)) {
       // we may check function call before visiting function declaration.
       completeSignature(functionDecl);
       symbolTable.addSymbol(decl->name, decl);
+      if (functionDecl->name == "main") {
+        if (!functionDecl->args.empty()) {
+          throw CompileError("main function does not have args");
+        }
+        if (!functionDecl->retType || std::string(*functionDecl->retType) != "int") {
+          throw CompileError("return type of main function must be int");
+        }
+        findMain = true;
+      }
     }
+  }
+  if (!findMain) {
+    throw CompileError("cannot find main function");
   }
   for (auto &&decl : node.decls) {
     visit(*decl);

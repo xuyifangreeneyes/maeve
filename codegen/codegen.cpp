@@ -3,6 +3,10 @@
 
 namespace maeve {
 
+llvm::Type *getIntType() { return llvm::Type::getInt32Ty(TheContext::get()); }
+
+llvm::Type *getBoolType() { return llvm::Type::getInt8Ty(TheContext::get()); }
+
 llvm::AllocaInst *createEntryBlockAlloca(llvm::Function *function,
                                          const std::string &name,
                                          llvm::Type *type) {
@@ -11,14 +15,14 @@ llvm::AllocaInst *createEntryBlockAlloca(llvm::Function *function,
   return TmpB.CreateAlloca(type, nullptr, name);
 }
 
-llvm::Type *Codegen::getType(const std::shared_ptr<ast::Type> &type) {
+llvm::Type *Codegen::getType(const std::shared_ptr<ast::Type> &type) const {
   if (auto builtinType = std::dynamic_pointer_cast<ast::BuiltinType>(type)) {
     using Kind = ast::BuiltinType::Kind;
     switch (builtinType->kind) {
     case Kind::Int:
-      return llvm::Type::getInt32Ty(TheContext::get());
+      return getIntType();
     case Kind::Bool:
-      return llvm::Type::getInt1Ty(TheContext::get());
+      return getBoolType();
     case Kind::String:
       // TODO: deal with string type
       assert(false);
@@ -83,38 +87,265 @@ void Codegen::addFunctionPrototype(
   }
 }
 
-void Codegen::addGlobalVarInit() {
-  std::vector<llvm::Type *> argTypes;
-  auto functionType = llvm::FunctionType::get(
-      llvm::Type::getVoidTy(TheContext::get()), argTypes, false);
-  auto function =
-      llvm::Function::Create(functionType, llvm::Function::ExternalLinkage,
-                             "__global_var_init", module.get());
-  llvm::BasicBlock::Create(TheContext::get(), "entry", function);
-}
-
 void Codegen::addBuiltinFunction() {
   // TODO
+}
+
+llvm::Value *Codegen::getExprValue(const ast::Expr &expr) const {
+  auto iter = values.find(expr.getID());
+  if (iter != values.end()) {
+    return iter->second;
+  }
+  return nullptr;
+}
+
+void Codegen::assertNotTerminated() const {
+  assert(!builder->GetInsertBlock()->getTerminator());
 }
 
 Codegen::Codegen()
     : module(std::make_unique<llvm::Module>("module", TheContext::get())),
       builder(std::make_unique<llvm::IRBuilder<>>(TheContext::get())) {
-  addGlobalVarInit();
   addBuiltinFunction();
+}
+
+void Codegen::createBrIfNotTerminated(llvm::BasicBlock *destBB) {
+  if (!builder->GetInsertBlock()->getTerminator()) {
+    builder->CreateBr(destBB);
+  }
+}
+
+void Codegen::dealLoopCondition(ast::Expr &cond, llvm::BasicBlock *bodyBB,
+                                llvm::BasicBlock *endBB) {
+  visit(cond);
+  llvm::Value *condValue = getExprValue(cond);
+  assert(condValue);
+  assertNotTerminated();
+  builder->CreateCondBr(condValue, bodyBB, endBB);
+}
+
+llvm::Value *Codegen::getPointer(std::shared_ptr<ast::Expr> expr) {
+  if (auto varExpr = std::dynamic_pointer_cast<ast::VarExpr>(expr)) {
+    if (varExpr->name == "this") {
+
+    } else {
+    }
+  }
+  if (auto memberAccess = std::dynamic_pointer_cast<ast::MemberAccess>(expr)) {
+  }
+  if (auto arrayAccess = std::dynamic_pointer_cast<ast::ArrayAccess>(expr)) {
+  }
+  if (auto unaryExpr = std::dynamic_pointer_cast<ast::UnaryExpr>(expr)) {
+  }
+  assert(false);
 }
 
 void Codegen::visit(ast::AstNode &node) { node.accept(*this); }
 
+void Codegen::visit(ast::BinaryExpr &node) {}
+
+void Codegen::visit(ast::UnaryExpr &node) {}
+
+void Codegen::visit(ast::FunctionCall &node) {}
+
+void Codegen::visit(ast::ArrayAccess &node) {}
+
+void Codegen::visit(ast::MemberAccess &node) {}
+
+void Codegen::visit(ast::NewExpr &node) {}
+
+void Codegen::visit(ast::VarExpr &node) {}
+
+void Codegen::visit(ast::LiteralInt &node) {
+  values[node.getID()] =
+      llvm::ConstantInt::get(getIntType(), static_cast<uint64_t>(node.value));
+}
+
+void Codegen::visit(ast::LiteralBool &node) {
+  values[node.getID()] =
+      llvm::ConstantInt::get(getBoolType(), static_cast<uint64_t>(node.value));
+}
+
+void Codegen::visit(ast::LiteralString &node) {
+  // TODO
+}
+
+void Codegen::visit(ast::LiteralNull &node) {
+  assert(!std::dynamic_pointer_cast<ast::BuiltinType>(node.type));
+  llvm::Type *type = getType(node.type);
+  assert(type->isPointerTy());
+  llvm::PointerType *pointerType = (llvm::PointerType *)(getType(node.type));
+  values[node.getID()] = llvm::ConstantPointerNull::get(pointerType);
+}
+
+void Codegen::visit(ast::CompoundStmt &node) {
+  for (auto &&stmt : node.stmts) {
+    visit(*stmt);
+  }
+}
+
+void Codegen::visit(ast::VarDeclStmt &node) {
+  llvm::Function *function = builder->GetInsertBlock()->getParent();
+  auto varDecl = node.varDecl;
+  llvm::AllocaInst *allocaInst =
+      createEntryBlockAlloca(function, varDecl->name, getType(varDecl->type));
+  if (varDecl->initExpr) {
+    visit(*varDecl->initExpr);
+    llvm::Value *initValue = getExprValue(*varDecl->initExpr);
+    assert(initValue);
+    builder->CreateStore(initValue, allocaInst);
+  }
+  localVars[varDecl->getID()] = allocaInst;
+}
+
+void Codegen::visit(ast::ExprStmt &node) { visit(*node.expr); }
+
+void Codegen::visit(ast::IfStmt &node) {
+  visit(*node.cond);
+  llvm::Value *cond = getExprValue(*node.cond);
+  assert(cond);
+
+  llvm::Function *function = builder->GetInsertBlock()->getParent();
+  llvm::BasicBlock *thenBB =
+      llvm::BasicBlock::Create(TheContext::get(), "then", function);
+  llvm::BasicBlock *elseBB =
+      node.otherwise
+          ? llvm::BasicBlock::Create(TheContext::get(), "else", function)
+          : nullptr;
+  llvm::BasicBlock *mergeBB =
+      llvm::BasicBlock::Create(TheContext::get(), "merge", function);
+  if (elseBB) {
+    builder->CreateCondBr(cond, thenBB, elseBB);
+  } else {
+    builder->CreateCondBr(cond, thenBB, mergeBB);
+  }
+
+  builder->SetInsertPoint(thenBB);
+  visit(*node.then);
+  createBrIfNotTerminated(mergeBB);
+
+  if (elseBB) {
+    builder->SetInsertPoint(elseBB);
+    visit(*node.otherwise);
+    createBrIfNotTerminated(mergeBB);
+  }
+
+  builder->SetInsertPoint(mergeBB);
+}
+
+void Codegen::visit(ast::ForStmt &node) {
+  llvm::Function *function = builder->GetInsertBlock()->getParent();
+  llvm::BasicBlock *condBB =
+      llvm::BasicBlock::Create(TheContext::get(), "for_cond", function);
+  llvm::BasicBlock *bodyBB =
+      llvm::BasicBlock::Create(TheContext::get(), "for_body", function);
+  llvm::BasicBlock *stepBB =
+      llvm::BasicBlock::Create(TheContext::get(), "for_step", function);
+  llvm::BasicBlock *endBB =
+      llvm::BasicBlock::Create(TheContext::get(), "for_end", function);
+
+  breakDests.push(endBB);
+  continueDests.push(stepBB);
+
+  if (node.init) {
+    visit(*node.init);
+  }
+  assertNotTerminated();
+  builder->CreateBr(condBB);
+
+  builder->SetInsertPoint(condBB);
+  if (node.cond) {
+    dealLoopCondition(*node.cond, bodyBB, endBB);
+  } else {
+    builder->CreateBr(bodyBB);
+  }
+
+  builder->SetInsertPoint(bodyBB);
+  visit(*node.body);
+  createBrIfNotTerminated(stepBB);
+
+  builder->SetInsertPoint(stepBB);
+  if (node.step) {
+    visit(*node.step);
+  }
+  assertNotTerminated();
+  builder->CreateBr(condBB);
+
+  builder->SetInsertPoint(endBB);
+
+  breakDests.pop();
+  continueDests.pop();
+}
+
+void Codegen::visit(ast::WhileStmt &node) {
+  llvm::Function *function = builder->GetInsertBlock()->getParent();
+  llvm::BasicBlock *condBB =
+      llvm::BasicBlock::Create(TheContext::get(), "while_cond", function);
+  llvm::BasicBlock *bodyBB =
+      llvm::BasicBlock::Create(TheContext::get(), "while_body", function);
+  llvm::BasicBlock *endBB =
+      llvm::BasicBlock::Create(TheContext::get(), "while_end", function);
+
+  breakDests.push(endBB);
+  continueDests.push(bodyBB);
+
+  builder->CreateBr(condBB);
+
+  builder->SetInsertPoint(condBB);
+  dealLoopCondition(*node.cond, bodyBB, endBB);
+
+  builder->SetInsertPoint(bodyBB);
+  visit(*node.body);
+  createBrIfNotTerminated(bodyBB);
+
+  builder->SetInsertPoint(endBB);
+
+  breakDests.pop();
+  continueDests.pop();
+}
+
+void Codegen::visit(ast::ReturnStmt &node) {
+  if (node.value) {
+    visit(*node.value);
+    llvm::Value *retValue = getExprValue(*node.value);
+    builder->CreateRet(retValue);
+  } else {
+    builder->CreateRetVoid();
+  }
+}
+
+void Codegen::visit(ast::BreakStmt &node) {
+  builder->CreateBr(breakDests.top());
+}
+
+void Codegen::visit(ast::ContinueStmt &node) {
+  builder->CreateBr(continueDests.top());
+}
+
 /*
  * only global `VarDecl` comes here
- * `VarDecl` in Class does not need Alloca
+ * `VarDecl` in Class does not need AllocaInst
  * `VarDecl` in function argument list is processed when visiting `FunctionDecl`
  * `VarDecl` in `VarDeclStmt` is processed when visiting `VarDeclStmt`
  */
 void Codegen::visit(ast::VarDecl &node) {
-  auto type = getType(node.type);
-
+  module->getOrInsertGlobal(node.name, getType(node.type));
+  llvm::GlobalVariable *globalVar = module->getNamedGlobal(node.name);
+  globalVar->setLinkage(llvm::GlobalVariable::ExternalLinkage);
+  llvm::Type *type = globalVar->getType()->getElementType();
+  if (node.initExpr) {
+    visit(*node.initExpr);
+    llvm::Value *initValue = getExprValue(*node.initExpr);
+    assert(initValue);
+    llvm::Constant *c = llvm::dyn_cast<llvm::Constant>(initValue);
+    assert(c); // or throw an error?
+    globalVar->setInitializer(c);
+  } else {
+    llvm::ConstantAggregateZero *zeroInit =
+        llvm::ConstantAggregateZero::get(type);
+    globalVar->setInitializer(zeroInit);
+  }
+  globalVars[node.getID()] = globalVar;
 }
 
 void Codegen::visit(ast::FunctionDecl &node) {
@@ -134,19 +365,21 @@ void Codegen::visit(ast::FunctionDecl &node) {
   bool isMemberFunction = count == node.args.size() + 1;
   std::size_t idx = 0;
   for (auto &&arg : function->args()) {
-    llvm::AllocaInst *alloca =
+    llvm::AllocaInst *allocaInst =
         createEntryBlockAlloca(function, arg.getName(), arg.getType());
-    builder->CreateStore(&arg, alloca);
+    builder->CreateStore(&arg, allocaInst);
     if (isMemberFunction && idx == 0) {
       // this argument is `ClassType *self`
-      thisAlloca = alloca;
+      thisAlloca = allocaInst;
     } else {
       ast::NodeId id = node.args[idx++]->getID();
-      vars[id] = alloca;
+      localVars[id] = allocaInst;
     }
   }
 
+  currentFunction = function;
   visit(*node.body);
+  currentFunction = nullptr;
 
   llvm::verifyFunction(*function);
 
@@ -188,6 +421,11 @@ void Codegen::visit(ast::AstRoot &node) {
       // we assume field does not have initialization expression
       assert(!fieldDecl->initExpr);
       fieldTypes.push_back(getType(fieldDecl->type));
+    }
+    // If `Class A` does not have any data field, it looks like
+    // `%struct.A = type { i8 }` in LLVM IR.
+    if (fieldTypes.empty()) {
+      fieldTypes.push_back(getBoolType());
     }
     structTypes[decl->name]->setBody(fieldTypes);
   }

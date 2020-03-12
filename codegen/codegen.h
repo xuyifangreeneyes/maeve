@@ -2,6 +2,7 @@
 #define MAEVE_CODEGEN_H
 
 #include <memory>
+#include <stack>
 #include <unordered_map>
 
 #include "../ast/node.h"
@@ -34,10 +35,6 @@ public:
 
   void visit(ast::AstNode &node) override;
 
-  void visit(ast::BuiltinType &node) override;
-  void visit(ast::ClassType &node) override;
-  void visit(ast::ArrayType &node) override;
-
   void visit(ast::BinaryExpr &node) override;
   void visit(ast::UnaryExpr &node) override;
   void visit(ast::FunctionCall &node) override;
@@ -59,7 +56,6 @@ public:
   void visit(ast::ReturnStmt &node) override;
   void visit(ast::BreakStmt &node) override;
   void visit(ast::ContinueStmt &node) override;
-  void visit(ast::EmptyStmt &node) override;
 
   void visit(ast::VarDecl &node) override;
   void visit(ast::FunctionDecl &node) override;
@@ -68,22 +64,36 @@ public:
   void visit(ast::AstRoot &node) override;
 
 private:
+  llvm::Function *currentFunction;
+
   std::unique_ptr<llvm::Module> module;
   std::unique_ptr<llvm::IRBuilder<>> builder;
-  std::unordered_map<ast::NodeId, llvm::AllocaInst *> vars;
+
+  std::unordered_map<ast::NodeId, llvm::GlobalVariable *> globalVars;
+  std::unordered_map<ast::NodeId, llvm::AllocaInst *> localVars;
   // When we meet a member function, we allocate a stack slot to store
   // `ClassType *self` and record it in `thisAlloca`. For VarExpr `this`, it
   // does not link to VarDecl so we use `thisAlloca` to get `this`.
   llvm::AllocaInst *thisAlloca = nullptr;
+
   std::unordered_map<ast::NodeId, llvm::Value *> values;
 
-  llvm::Type *getType(const std::shared_ptr<ast::Type> &type);
+  std::stack<llvm::BasicBlock *> breakDests;
+  std::stack<llvm::BasicBlock *> continueDests;
+
+  llvm::Type *getType(const std::shared_ptr<ast::Type> &type) const;
   void addFunctionPrototype(
       const std::shared_ptr<ast::FunctionDecl> &functionDecl,
       const std::shared_ptr<ast::ClassDecl> &classDecl = nullptr);
-
-  void addGlobalVarInit();
   void addBuiltinFunction();
+  llvm::Value *getExprValue(const ast::Expr &expr) const;
+
+  void assertNotTerminated() const;
+  void createBrIfNotTerminated(llvm::BasicBlock *destBB);
+  void dealLoopCondition(ast::Expr &cond, llvm::BasicBlock *bodyBB,
+                         llvm::BasicBlock *endBB);
+
+  llvm::Value *getPointer(std::shared_ptr<ast::Expr> expr);
 };
 
 } // namespace maeve

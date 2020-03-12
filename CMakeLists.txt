@@ -3,8 +3,6 @@ project(maeve)
 
 set(CMAKE_CXX_STANDARD 17)
 
-set(LLVM_DIR /usr/local/Cellar/llvm/7.0.1/lib/cmake/llvm)
-
 find_package(LLVM REQUIRED CONFIG)
 
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
@@ -45,6 +43,6 @@ set(SOURCES
   )
 
 add_executable(maeve ${HEADERS} ${SOURCES})
-llvm_map_components_to_libnames(llvm_libs support core irreader)
+llvm_map_components_to_libnames(llvm_libs support core irreader native)
 target_include_directories(maeve PRIVATE /usr/local/include/antlr4-runtime)
 target_link_libraries(maeve PRIVATE -lantlr4-runtime ${llvm_libs})
