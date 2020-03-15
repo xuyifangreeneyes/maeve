@@ -167,7 +167,6 @@ void SemanticChecker::visit(ast::UnaryExpr &node) {
       throw CompileError("invalid operand of unary expression");
     }
     node.type = builtinType(Kind::Int);
-    node.lvalue = (node.op == Op::PreInc || node.op == Op::PreDec);
     return;
   case Op::Pos:
   case Op::Neg:

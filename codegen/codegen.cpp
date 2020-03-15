@@ -3,9 +3,37 @@
 
 namespace maeve {
 
-llvm::Type *getIntType() { return llvm::Type::getInt32Ty(TheContext::get()); }
+llvm::Type *getInt8Ty() { return llvm::Type::getInt8Ty(TheContext::get()); }
 
-llvm::Type *getBoolType() { return llvm::Type::getInt8Ty(TheContext::get()); }
+llvm::Type *getInt32Ty() { return llvm::Type::getInt32Ty(TheContext::get()); }
+
+llvm::Type *getInt64Ty() { return llvm::Type::getInt64Ty(TheContext::get()); }
+
+llvm::Type *getVoidTy() { return llvm::Type::getVoidTy(TheContext::get()); }
+
+llvm::Type *getInt8PtrTy() {
+  return llvm::Type::getInt8PtrTy(TheContext::get());
+}
+
+llvm::Type *getInt32PtrTy() {
+  return llvm::Type::getInt32PtrTy(TheContext::get());
+}
+
+llvm::Constant *getInt32(uint64_t n) {
+  return llvm::ConstantInt::get(getInt32Ty(), n);
+}
+
+llvm::Constant *getInt64(uint64_t n) {
+  return llvm::ConstantInt::get(getInt64Ty(), n);
+}
+
+std::string
+getClassName(const std::shared_ptr<ast::MemberAccess> &memberAccess) {
+  auto classType =
+      std::dynamic_pointer_cast<ast::ClassType>(memberAccess->instance->type);
+  assert(classType);
+  return classType->name;
+}
 
 llvm::AllocaInst *createEntryBlockAlloca(llvm::Function *function,
                                          const std::string &name,
@@ -15,20 +43,24 @@ llvm::AllocaInst *createEntryBlockAlloca(llvm::Function *function,
   return TmpB.CreateAlloca(type, nullptr, name);
 }
 
+llvm::Type *Codegen::getArrayPtrTy() const {
+  return llvm::PointerType::getUnqual(module->getTypeByName("_Array"));
+}
+
 llvm::Type *Codegen::getType(const std::shared_ptr<ast::Type> &type) const {
   if (auto builtinType = std::dynamic_pointer_cast<ast::BuiltinType>(type)) {
     using Kind = ast::BuiltinType::Kind;
     switch (builtinType->kind) {
     case Kind::Int:
-      return getIntType();
+      return getInt32Ty();
     case Kind::Bool:
-      return getBoolType();
+      return getInt8Ty();
     case Kind::String:
-      // TODO: deal with string type
-      assert(false);
+      return getInt8PtrTy();
     case Kind::Void:
-      return llvm::Type::getVoidTy(TheContext::get());
+      return getVoidTy();
     default:
+      // Kind::Null is not supposed to appear
       assert(false);
     }
   }
@@ -38,43 +70,51 @@ llvm::Type *Codegen::getType(const std::shared_ptr<ast::Type> &type) const {
     assert(structType);
     return llvm::PointerType::getUnqual(structType);
   }
-  // in Mx*, array is implemented by pointer
-  auto arrayType = std::dynamic_pointer_cast<ast::ArrayType>(type);
-  assert(arrayType);
-  auto currentType = getType(arrayType->baseType);
-  std::size_t i = arrayType->dim;
-  while (i != 0) {
-    currentType = llvm::PointerType::getUnqual(currentType);
-    --i;
+  /*
+   * struct _Array {
+   *   char *data;
+   *   int32_t size;
+   * }
+   */
+  if (auto arrayType = std::dynamic_pointer_cast<ast::ArrayType>(type)) {
+    return getArrayPtrTy();
   }
-  return currentType;
+
+  assert(false);
+}
+
+llvm::Function *
+Codegen::addFunctionPrototype(const std::string &name, llvm::Type *retType,
+                              const std::vector<llvm::Type *> &argTypes) {
+  llvm::FunctionType *functionType =
+      llvm::FunctionType::get(retType, argTypes, false);
+  return llvm::Function::Create(functionType, llvm::Function::ExternalLinkage,
+                                name, module.get());
 }
 
 void Codegen::addFunctionPrototype(
     const std::shared_ptr<ast::FunctionDecl> &functionDecl,
     const std::shared_ptr<ast::ClassDecl> &classDecl) {
+  std::string functionName = functionDecl->name;
   std::vector<llvm::Type *> argTypes;
-  llvm::Type *classType =
-      classDecl
-          ? llvm::PointerType::getUnqual(module->getTypeByName(classDecl->name))
-          : nullptr;
-  // for class member function and constructor, add class instance as first
-  // argument
   if (classDecl) {
+    // for class member function and constructor, add prefix for function name
+    functionName = "_" + classDecl->name + "_" + functionName;
+    // and add class instance as first argument
+    llvm::Type *classType =
+        llvm::PointerType::getUnqual(module->getTypeByName(classDecl->name));
     argTypes.push_back(classType);
   }
   for (auto &&varDecl : functionDecl->args) {
     argTypes.push_back(getType(varDecl->type));
   }
   // for class constructor, we assume its return type is void
-  llvm::Type *retType = functionDecl->retType
-                            ? getType(functionDecl->retType)
-                            : llvm::Type::getVoidTy(TheContext::get());
-  llvm::FunctionType *functionType =
-      llvm::FunctionType::get(retType, argTypes, false);
+  llvm::Type *retType =
+      functionDecl->retType ? getType(functionDecl->retType) : getVoidTy();
+
   llvm::Function *function =
-      llvm::Function::Create(functionType, llvm::Function::ExternalLinkage,
-                             functionDecl->name, module.get());
+      addFunctionPrototype(functionDecl->name, retType, argTypes);
+
   std::size_t idx = 0;
   for (auto &&arg : function->args()) {
     std::string argName;
@@ -87,16 +127,69 @@ void Codegen::addFunctionPrototype(
   }
 }
 
-void Codegen::addBuiltinFunction() {
-  // TODO
+void Codegen::addStringComparison(const std::string &name) {
+  addFunctionPrototype(name, getInt8Ty(), {getInt8PtrTy(), getInt8PtrTy()});
 }
 
-llvm::Value *Codegen::getExprValue(const ast::Expr &expr) const {
+void Codegen::addBuiltin() {
+  // add struct Array
+  llvm::StructType *structType =
+      llvm::StructType::create(TheContext::get(), "_Array");
+  structType->setBody({getInt8PtrTy(), getInt32Ty()});
+
+  // add builtin functions
+  addFunctionPrototype("print", getVoidTy(), {getInt8PtrTy()});
+  addFunctionPrototype("println", getVoidTy(), {getInt8PtrTy()});
+  addFunctionPrototype("getString", getInt8PtrTy(), {});
+  addFunctionPrototype("getInt", getInt32Ty(), {});
+  addFunctionPrototype("toString", getInt8PtrTy(), {getInt32Ty()});
+  addFunctionPrototype("_string_length", getInt32Ty(), {getInt8PtrTy()});
+  addFunctionPrototype("_string_substring", getInt8PtrTy(),
+                       {getInt8PtrTy(), getInt32Ty(), getInt32Ty()});
+  addFunctionPrototype("_string_parseInt", getInt32Ty(), {getInt8PtrTy()});
+  addFunctionPrototype("_string_ord", getInt32Ty(),
+                       {getInt8PtrTy(), getInt32Ty()});
+  addFunctionPrototype("_string_add", getInt8PtrTy(),
+                       {getInt8PtrTy(), getInt8PtrTy()});
+
+  addStringComparison("_string_eq");
+  addStringComparison("_string_neq");
+  addStringComparison("_string_lt");
+  addStringComparison("_string_gt");
+  addStringComparison("_string_le");
+  addStringComparison("_string_ge");
+
+  addFunctionPrototype("_array_size", getInt32Ty(), {getArrayPtrTy()});
+}
+
+llvm::Value *Codegen::getVar(const ast::VarExpr &expr) const {
+  ast::NodeId varId = expr.varDecl.lock()->getID();
+  auto iter1 = localVars.find(varId);
+  if (iter1 != localVars.end()) {
+    return iter1->second;
+  }
+  auto iter2 = globalVars.find(varId);
+  if (iter2 != globalVars.end()) {
+    return iter2->second;
+  }
+  return nullptr;
+}
+
+llvm::Value *Codegen::getExprValue(ast::Expr &expr) {
+  visit(expr);
   auto iter = values.find(expr.getID());
   if (iter != values.end()) {
     return iter->second;
   }
   return nullptr;
+}
+
+llvm::GetElementPtrInst *
+Codegen::getElementPtrInBounds(llvm::Value *ptr,
+                               const std::vector<llvm::Value *> &idxList,
+                               const std::string &name) {
+  return llvm::GetElementPtrInst::CreateInBounds(ptr, idxList, name,
+                                                 builder->GetInsertBlock());
 }
 
 void Codegen::assertNotTerminated() const {
@@ -106,7 +199,7 @@ void Codegen::assertNotTerminated() const {
 Codegen::Codegen()
     : module(std::make_unique<llvm::Module>("module", TheContext::get())),
       builder(std::make_unique<llvm::IRBuilder<>>(TheContext::get())) {
-  addBuiltinFunction();
+  addBuiltin();
 }
 
 void Codegen::createBrIfNotTerminated(llvm::BasicBlock *destBB) {
@@ -117,7 +210,6 @@ void Codegen::createBrIfNotTerminated(llvm::BasicBlock *destBB) {
 
 void Codegen::dealLoopCondition(ast::Expr &cond, llvm::BasicBlock *bodyBB,
                                 llvm::BasicBlock *endBB) {
-  visit(cond);
   llvm::Value *condValue = getExprValue(cond);
   assert(condValue);
   assertNotTerminated();
@@ -127,15 +219,38 @@ void Codegen::dealLoopCondition(ast::Expr &cond, llvm::BasicBlock *bodyBB,
 llvm::Value *Codegen::getPointer(std::shared_ptr<ast::Expr> expr) {
   if (auto varExpr = std::dynamic_pointer_cast<ast::VarExpr>(expr)) {
     if (varExpr->name == "this") {
-
+      assert(thisAlloca);
+      return thisAlloca;
     } else {
+      llvm::Value *var = getVar(*varExpr);
+      assert(var);
+      return var;
     }
   }
   if (auto memberAccess = std::dynamic_pointer_cast<ast::MemberAccess>(expr)) {
+    // we assume that there is no code like `getFoo(1, 2).a = 2`
+    llvm::Value *ptrPtr = getPointer(memberAccess->instance);
+    assert(ptrPtr);
+    llvm::Value *ptr = builder->CreateLoad(ptrPtr);
+    uint64_t second =
+        structMap[getClassName(memberAccess)][memberAccess->field];
+    return getElementPtrInBounds(ptr, {getInt32(0), getInt32(second)}, "elem");
   }
   if (auto arrayAccess = std::dynamic_pointer_cast<ast::ArrayAccess>(expr)) {
-  }
-  if (auto unaryExpr = std::dynamic_pointer_cast<ast::UnaryExpr>(expr)) {
+    llvm::Value *arrayPtrPtr = getPointer(arrayAccess->array);
+    assert(arrayPtrPtr);
+    llvm::Value *arrayPtr = builder->CreateLoad(arrayPtrPtr);
+    llvm::Value *charPtrPtr =
+        getElementPtrInBounds(arrayPtr, {getInt32(0), getInt32(0)}, "charPtr");
+    llvm::Value *charPtr = builder->CreateLoad(charPtrPtr);
+    llvm::Value *dataPtr = builder->CreateBitCast(
+        charPtr, llvm::PointerType::getUnqual(getType(expr->type)));
+
+    llvm::Value *indexValue = getExprValue(*arrayAccess->index);
+    assert(indexValue && indexValue->getType()->isIntegerTy(32));
+    indexValue = builder->CreateSExt(indexValue, getInt64Ty());
+
+    return getElementPtrInBounds(dataPtr, {indexValue}, "dataPtr");
   }
   assert(false);
 }
@@ -144,30 +259,92 @@ void Codegen::visit(ast::AstNode &node) { node.accept(*this); }
 
 void Codegen::visit(ast::BinaryExpr &node) {}
 
-void Codegen::visit(ast::UnaryExpr &node) {}
+void Codegen::visit(ast::UnaryExpr &node) {
+  using Op = ast::UnaryExpr::Op;
+  switch (node.op) {
+  case Op::PreInc:
+  case Op::PreDec:
+  case Op::PostInc:
+  case Op::PostDec: {
+    llvm::Value *ptr = getPointer(node.operand);
+    llvm::Value *oldValue = builder->CreateLoad(ptr);
+    llvm::Value *newValue =
+        builder->CreateNSWAdd(oldValue, getInt32(static_cast<uint64_t>((node.op == Op::PreInc || node.op == Op::PostInc) ? 1 : -1)));
+    values[node.getID()] =
+        (node.op == Op::PreInc || node.op == Op::PreDec) ? newValue : oldValue;
+    break;
+  }
 
-void Codegen::visit(ast::FunctionCall &node) {}
+  }
+}
 
-void Codegen::visit(ast::ArrayAccess &node) {}
+void Codegen::visit(ast::FunctionCall &node) {
+  std::string functionName = node.method;
+  std::vector<llvm::Value *> args;
+  if (node.instance) {
+    auto type = node.instance->type;
+    if (auto classType = std::dynamic_pointer_cast<ast::ClassType>(type)) {
+      functionName = "_" + classType->name + "_" + functionName;
+    } else if (auto arrayType =
+                   std::dynamic_pointer_cast<ast::ArrayType>(type)) {
+      functionName = "_array_" + functionName;
+    } else {
+      auto builtinType = std::dynamic_pointer_cast<ast::BuiltinType>(type);
+      assert(builtinType && builtinType->kind == ast::BuiltinType::String);
+      functionName = "_string_" + functionName;
+    }
+    llvm::Value *instanceValue = getExprValue(*node.instance);
+    assert(instanceValue);
+    args.push_back(instanceValue);
+  }
+  for (auto &&arg : node.args) {
+    llvm::Value *argValue = getExprValue(*arg);
+    assert(argValue);
+    args.push_back(argValue);
+  }
+  llvm::Function *function = module->getFunction(functionName);
+  builder->CreateCall(function, args);
+}
 
-void Codegen::visit(ast::MemberAccess &node) {}
+void Codegen::visit(ast::ArrayAccess &node) {
+  auto arrayAccess =
+      std::dynamic_pointer_cast<ast::ArrayAccess>(node.shared_from_this());
+  assert(arrayAccess);
+  llvm::Value *ptr = getPointer(arrayAccess);
+  values[node.getID()] = builder->CreateLoad(ptr);
+}
 
-void Codegen::visit(ast::NewExpr &node) {}
+void Codegen::visit(ast::MemberAccess &node) {
+  auto memberAccess =
+      std::dynamic_pointer_cast<ast::MemberAccess>(node.shared_from_this());
+  assert(memberAccess);
+  llvm::Value *ptr = getPointer(memberAccess);
+  values[node.getID()] = builder->CreateLoad(ptr);
+}
 
-void Codegen::visit(ast::VarExpr &node) {}
+void Codegen::visit(ast::NewExpr &node) {
+  // TODO
+}
+
+void Codegen::visit(ast::VarExpr &node) {
+  auto varExpr =
+      std::dynamic_pointer_cast<ast::VarExpr>(node.shared_from_this());
+  assert(varExpr);
+  llvm::Value *ptr = getPointer(varExpr);
+  values[node.getID()] = builder->CreateLoad(ptr);
+}
 
 void Codegen::visit(ast::LiteralInt &node) {
-  values[node.getID()] =
-      llvm::ConstantInt::get(getIntType(), static_cast<uint64_t>(node.value));
+  values[node.getID()] = getInt32(static_cast<uint64_t>(node.value));
 }
 
 void Codegen::visit(ast::LiteralBool &node) {
   values[node.getID()] =
-      llvm::ConstantInt::get(getBoolType(), static_cast<uint64_t>(node.value));
+      llvm::ConstantInt::get(getInt8Ty(), static_cast<uint64_t>(node.value));
 }
 
 void Codegen::visit(ast::LiteralString &node) {
-  // TODO
+  values[node.getID()] = builder->CreateGlobalStringPtr(node.value);
 }
 
 void Codegen::visit(ast::LiteralNull &node) {
@@ -190,7 +367,6 @@ void Codegen::visit(ast::VarDeclStmt &node) {
   llvm::AllocaInst *allocaInst =
       createEntryBlockAlloca(function, varDecl->name, getType(varDecl->type));
   if (varDecl->initExpr) {
-    visit(*varDecl->initExpr);
     llvm::Value *initValue = getExprValue(*varDecl->initExpr);
     assert(initValue);
     builder->CreateStore(initValue, allocaInst);
@@ -201,7 +377,6 @@ void Codegen::visit(ast::VarDeclStmt &node) {
 void Codegen::visit(ast::ExprStmt &node) { visit(*node.expr); }
 
 void Codegen::visit(ast::IfStmt &node) {
-  visit(*node.cond);
   llvm::Value *cond = getExprValue(*node.cond);
   assert(cond);
 
@@ -306,7 +481,6 @@ void Codegen::visit(ast::WhileStmt &node) {
 
 void Codegen::visit(ast::ReturnStmt &node) {
   if (node.value) {
-    visit(*node.value);
     llvm::Value *retValue = getExprValue(*node.value);
     builder->CreateRet(retValue);
   } else {
@@ -334,7 +508,6 @@ void Codegen::visit(ast::VarDecl &node) {
   globalVar->setLinkage(llvm::GlobalVariable::ExternalLinkage);
   llvm::Type *type = globalVar->getType()->getElementType();
   if (node.initExpr) {
-    visit(*node.initExpr);
     llvm::Value *initValue = getExprValue(*node.initExpr);
     assert(initValue);
     llvm::Constant *c = llvm::dyn_cast<llvm::Constant>(initValue);
@@ -380,6 +553,7 @@ void Codegen::visit(ast::FunctionDecl &node) {
   currentFunction = function;
   visit(*node.body);
   currentFunction = nullptr;
+  thisAlloca = nullptr;
 
   llvm::verifyFunction(*function);
 
@@ -408,12 +582,16 @@ void Codegen::visit(ast::AstRoot &node) {
         llvm::StructType::create(TheContext::get(), decl->name);
   }
 
-  // setBody for every StructType
+  // 1. setBody for every StructType
+  // 2. record index of field for every struct, which is used in
+  // `llvm::GetElementPtrInst::CreateInBounds`
   for (auto &&decl : node.decls) {
     auto classDecl = std::dynamic_pointer_cast<ast::ClassDecl>(decl);
     if (!classDecl)
       continue;
     std::vector<llvm::Type *> fieldTypes;
+    std::map<std::string, std::size_t> fieldMap;
+    std::size_t i = 0;
     for (auto &&iter : classDecl->decls) {
       auto fieldDecl = std::dynamic_pointer_cast<ast::VarDecl>(iter.second);
       if (!fieldDecl)
@@ -421,13 +599,16 @@ void Codegen::visit(ast::AstRoot &node) {
       // we assume field does not have initialization expression
       assert(!fieldDecl->initExpr);
       fieldTypes.push_back(getType(fieldDecl->type));
+      fieldMap[fieldDecl->name] = i;
+      ++i;
     }
     // If `Class A` does not have any data field, it looks like
     // `%struct.A = type { i8 }` in LLVM IR.
     if (fieldTypes.empty()) {
-      fieldTypes.push_back(getBoolType());
+      fieldTypes.push_back(getInt8Ty());
     }
     structTypes[decl->name]->setBody(fieldTypes);
+    structMap[decl->name] = fieldMap;
   }
 
   // add all functions (including member function) to module

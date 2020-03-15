@@ -1,6 +1,7 @@
 #ifndef MAEVE_CODEGEN_H
 #define MAEVE_CODEGEN_H
 
+#include <map>
 #include <memory>
 #include <stack>
 #include <unordered_map>
@@ -81,12 +82,31 @@ private:
   std::stack<llvm::BasicBlock *> breakDests;
   std::stack<llvm::BasicBlock *> continueDests;
 
+  std::map<std::string, std::map<std::string, std::size_t>> structMap;
+
+  llvm::Value *getVar(const ast::VarExpr &expr) const;
+  llvm::Value *getExprValue(ast::Expr &expr);
+
+  llvm::GetElementPtrInst *
+  getElementPtrInBounds(llvm::Value *ptr,
+                        const std::vector<llvm::Value *> &idxList,
+                        const std::string &name);
+
+  llvm::Type *getArrayPtrTy() const;
+
   llvm::Type *getType(const std::shared_ptr<ast::Type> &type) const;
+
+  llvm::Function *
+  addFunctionPrototype(const std::string &name, llvm::Type *retType,
+                       const std::vector<llvm::Type *> &argTypes);
+
   void addFunctionPrototype(
       const std::shared_ptr<ast::FunctionDecl> &functionDecl,
       const std::shared_ptr<ast::ClassDecl> &classDecl = nullptr);
-  void addBuiltinFunction();
-  llvm::Value *getExprValue(const ast::Expr &expr) const;
+
+  void addStringComparison(const std::string &name);
+
+  void addBuiltin();
 
   void assertNotTerminated() const;
   void createBrIfNotTerminated(llvm::BasicBlock *destBB);
